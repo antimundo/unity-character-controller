@@ -9,7 +9,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] float movementSpeed;
     [SerializeField] float maxVerticalSpeed;
     // Move particle
-    [SerializeField] ParticleSystem walkParticle;
+    [SerializeField] public ParticleSystem walkParticle;
 
     [Header("Jump")]
     [SerializeField] float jumpForce;
@@ -18,8 +18,8 @@ public class PlayerMovement : MonoBehaviour
     float jumpTimeCounter;
     bool isJumping;
     // Extra jumps
-    [SerializeField] int extraJumps;
-    int extraJumpsNow;
+    [SerializeField] public int extraJumps;
+    [HideInInspector] public int extraJumpsNow;
     // Jump Buffer
     [SerializeField] float jumpBufferLength;
     float jumpBufferCount;
@@ -33,7 +33,7 @@ public class PlayerMovement : MonoBehaviour
     [SerializeField] Transform groundCheck;
     [SerializeField] float checkRadius;
     [SerializeField] LayerMask whatIsGround;
-    bool isGrounded;
+    [HideInInspector] public bool isGrounded;
 
     [Header("Dash")]
     [SerializeField] float dashForce;
@@ -43,13 +43,13 @@ public class PlayerMovement : MonoBehaviour
     float gravityBefore;
 
     // dash coroutine
-    bool canDash = true;
-    bool isDashing = false;
+    [HideInInspector] public bool canDash = true;
+    [HideInInspector] public bool isDashing = false;
     readonly Coroutine dashCoroutine;
     [SerializeField] ParticleSystem dashParticle;
 
     // components
-    [SerializeField] SpriteRenderer sr;
+    [SerializeField] public SpriteRenderer sr;
     Rigidbody2D rb;
 
     private void Start()
@@ -58,20 +58,22 @@ public class PlayerMovement : MonoBehaviour
         extraJumpsNow = extraJumps;
         gravityBefore = rb.gravityScale;
     }
-
+    private void Awake()
+    {
+        Application.targetFrameRate = 60;
+    }
     private void Update()
     {
-        JumpBuffer();
-        CoyoteTime();
         Jump();
         Dash();
         LimitVerticalSpeed();
     }
-    
-    void FixedUpdate()
+
+    private void FixedUpdate()
     {
         Walk();
-        PerformDash();
+        if (isDashing)
+            PerformDash();
     }
 
     void LimitVerticalSpeed()
@@ -121,6 +123,8 @@ public class PlayerMovement : MonoBehaviour
 
     void Jump()
     {
+        JumpBuffer();
+        CoyoteTime();
         if (jumpBufferCount >= 0 && coyoteCounter > 0f)
         {
             isJumping = true;
@@ -211,17 +215,14 @@ public class PlayerMovement : MonoBehaviour
     /// </summary>
     void PerformDash()
     {
-        if (isDashing)
+        if (sr.flipX)
+            rb.velocity = new Vector2(-dashForce, rb.velocity.y);
+        else
+            rb.velocity = new Vector2(dashForce, rb.velocity.y);
+        if (resetSpeedY)
         {
-            if (sr.flipX)
-                rb.AddForce(Vector2.left * dashForce);
-            else
-                rb.AddForce(Vector2.right * dashForce);
-            if (resetSpeedY)
-            {
-                rb.gravityScale = 0;
-                rb.velocity = new Vector2(rb.velocity.x , 0);
-            }
+            rb.gravityScale = 0;
+            rb.velocity = new Vector2(rb.velocity.x, 0);
         }
     }
 }
