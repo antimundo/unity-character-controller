@@ -8,8 +8,6 @@ public class PlayerMovement : MonoBehaviour
     [Header("Movement")]
     [SerializeField] float movementSpeed;
     [SerializeField] float maxVerticalSpeed;
-    // Move particle
-    [SerializeField] public ParticleSystem walkParticle;
 
     [Header("Jump")]
     [SerializeField] float jumpForce;
@@ -26,8 +24,6 @@ public class PlayerMovement : MonoBehaviour
     // Coyote Time
     [SerializeField] float coyoteTime;
     float coyoteCounter;
-    // Jump particle
-    [SerializeField] ParticleSystem jumpParticle;
 
     [Header("Ground check")]
     [SerializeField] Transform groundCheck;
@@ -46,7 +42,6 @@ public class PlayerMovement : MonoBehaviour
     [HideInInspector] public bool canDash = true;
     [HideInInspector] public bool isDashing = false;
     readonly Coroutine dashCoroutine;
-    [SerializeField] ParticleSystem dashParticle;
 
     // components
     [SerializeField] public SpriteRenderer sr;
@@ -113,12 +108,6 @@ public class PlayerMovement : MonoBehaviour
             sr.flipX = false;
         else if (moveInput < 0)
             sr.flipX = true;
-        
-        // flip dash particle
-        if (moveInput > 0)
-            dashParticle.transform.eulerAngles = new Vector3(0,0,0);
-        else if (moveInput < 0)
-            dashParticle.transform.eulerAngles = new Vector3(0,180,0);
     }
 
     void Jump()
@@ -147,7 +136,6 @@ public class PlayerMovement : MonoBehaviour
             jumpTimeCounter = jumpTime;
             rb.velocity = Vector2.up * jumpForce;
             extraJumpsNow--;
-            jumpParticle.Play();
         }
 
         if (Input.GetButtonUp("Jump")) isJumping = false;
@@ -187,10 +175,6 @@ public class PlayerMovement : MonoBehaviour
                 StopCoroutine(dashCoroutine);
 
             StartCoroutine(CheckIfDashing());
-
-            // Visual effects
-            dashParticle.Play();
-            CinemachineShake.Instance.ShakeCamera(5f, 0.2f);
         }
     }
 
