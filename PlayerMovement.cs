@@ -5,75 +5,61 @@ using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("Movement")]
-    [SerializeField] float movementSpeed;
-    [SerializeField] float maxVerticalSpeed;
+    // Configuration
+    [Header("Walk")]
+    [SerializeField] float walkSpeed;
 
     [Header("Jump")]
     [SerializeField] float jumpForce;
-    // Jump time
     [SerializeField] float jumpTime;
-    float jumpTimeCounter;
-    bool isJumping;
-    // Extra jumps
-    [SerializeField] public int extraJumps;
-    [HideInInspector] public int extraJumpsNow;
-    // Jump Buffer
-    [SerializeField] float jumpBufferLength;
-    float jumpBufferCount;
-    // Coyote Time
+    [SerializeField] int extraJumps;
+    [SerializeField] float maxVerticalSpeed;
+    [SerializeField] float jumpBufferTime;
     [SerializeField] float coyoteTime;
-    float coyoteCounter;
 
     [Header("Ground check")]
     [SerializeField] Transform groundCheck;
     [SerializeField] float checkRadius;
     [SerializeField] LayerMask whatIsGround;
-    [HideInInspector] public bool isGrounded;
 
     [Header("Dash")]
     [SerializeField] float dashForce;
     [SerializeField] float dashDuration;
     [SerializeField] float dashCooldown;
-    [SerializeField] bool resetSpeedY;
-    float gravityBefore;
+    [SerializeField] bool freezeVerticalSpeedWhileDashing;
 
-    // dash coroutine
-    [HideInInspector] public bool canDash = true;
-    [HideInInspector] public bool isDashing = false;
-    readonly Coroutine dashCoroutine;
+    // local
+    int extraJumpsNow;
+    float jumpTimeCount;
+    bool isJumping;
+    float jumpBufferCount;
+    float coyoteCount;
+    bool canDash = true;
+    bool isDashing = false;
 
     // components
-    [SerializeField] public SpriteRenderer sr;
+    SpriteRenderer sr;
     Rigidbody2D rb;
 
     private void Start()
     {
         rb = GetComponent<Rigidbody2D>();
+        sr = GetComponent<SpriteRenderer>();
         extraJumpsNow = extraJumps;
-        gravityBefore = rb.gravityScale;
-    }
-    private void Awake()
-    {
-        Application.targetFrameRate = 60;
-    }
-    private void Update()
-    {
-        Jump();
-        Dash();
-        LimitVerticalSpeed();
     }
 
-    private void FixedUpdate()
+    private void Update()
     {
         Walk();
-        if (isDashing)
-            PerformDash();
+        Jump();
+        Dash();
+
+        LimitVerticalSpeed();
     }
 
     void LimitVerticalSpeed()
     {
-        Vector3 currentVelocity = rb.velocity;
+        Vector2 currentVelocity = rb.velocity;
 
         if (rb.velocity.magnitude > maxVerticalSpeed)
             rb.velocity = rb.velocity.normalized * maxVerticalSpeed;
@@ -82,110 +68,104 @@ public class PlayerMovement : MonoBehaviour
         rb.velocity = currentVelocity;
     }
 
-    void Walk()
-    {
-        // Check if object is touching ground
-        isGrounded = Physics2D.OverlapCircle(
+    // Check if object is touching ground
+    bool isGrounded() =>
+        Physics2D.OverlapCircle(
             groundCheck.position,
             checkRadius,
             whatIsGround);
 
-        // Use Input.GetAxis to get a less snappy movement
-        float moveInput = Input.GetAxisRaw("Horizontal");
-
-        // Applies the force
-        rb.velocity = new Vector2(moveInput * movementSpeed, rb.velocity.y);
-
-        FlipSprite(moveInput);
-    }
-
-    /// <summary>
-    /// Flips the sprite to face the moving direction
-    /// </summary>
-    void FlipSprite(float moveInput)
+    void Walk()
     {
-        if (moveInput > 0)
-            sr.flipX = false;
-        else if (moveInput < 0)
-            sr.flipX = true;
+        // You can use Input.GetAxis to get a less snappy movement
+        float walkInput = Input.GetAxisRaw("Horizontal");
+
+        rb.position += new Vector2(walkInput * walkSpeed * Time.deltaTime, 0);
+
+        // Makes the sprite look towards the movement direction
+        if (walkInput != 0) sr.flipX = walkInput < 0;
     }
 
     void Jump()
     {
         JumpBuffer();
         CoyoteTime();
-        if (jumpBufferCount >= 0 && coyoteCounter > 0f)
+
+        if (jumpBufferCount >= 0 && coyoteCount > 0f)
         {
             isJumping = true;
-            jumpTimeCounter = jumpTime;  
+            jumpTimeCount = jumpTime;
             rb.velocity = Vector2.up * jumpForce;
             jumpBufferCount = 0;
         }
         else if (Input.GetButton("Jump") && isJumping)
         {
-            if (jumpTimeCounter > 0)
+            if (jumpTimeCount > 0)
             {
                 rb.velocity = Vector2.up * jumpForce;
-                jumpTimeCounter -= Time.deltaTime;
+                jumpTimeCount -= Time.deltaTime;
             }
             else isJumping = false;
         }
         else if (Input.GetButtonDown("Jump") && extraJumpsNow > 0)
         {
             isJumping = true;
-            jumpTimeCounter = jumpTime;
+            jumpTimeCount = jumpTime;
             rb.velocity = Vector2.up * jumpForce;
             extraJumpsNow--;
         }
 
         if (Input.GetButtonUp("Jump")) isJumping = false;
 
-        if (isGrounded) extraJumpsNow = extraJumps;
+        if (isGrounded()) extraJumpsNow = extraJumps;
     }
 
-    /// <summary>
     /// Little margin to perform a jump after leaving the ground
-    /// </summary>
     void CoyoteTime()
     {
-        if (isGrounded)
-            coyoteCounter = coyoteTime;
+        if (isGrounded())
+            coyoteCount = coyoteTime;
         else
-            coyoteCounter -= Time.deltaTime;
+            coyoteCount -= Time.deltaTime;
     }
 
-    /// <summary>
     /// Little margin to perform a jump before the ground is touched
-    /// </summary>
     void JumpBuffer()
     {
         if (Input.GetButtonDown("Jump"))
-            jumpBufferCount = jumpBufferLength;
+            jumpBufferCount = jumpBufferTime;
         else
             jumpBufferCount -= Time.deltaTime;
     }
 
-    /// <summary>
     /// Small horizontal jump
-    /// </summary>
     void Dash()
     {
-        if (Input.GetButtonDown("Dash") && canDash) {
-            if (dashCoroutine != null)
-                StopCoroutine(dashCoroutine);
+        if (Input.GetButtonDown("Dash") && canDash)
+            StartCoroutine(performDash());
 
-            StartCoroutine(CheckIfDashing());
-        }
+        if (isDashing)
+            if (sr.flipX)
+                rb.position += new Vector2(-dashForce * Time.deltaTime, 0);
+            else
+                rb.position += new Vector2(dashForce * Time.deltaTime, 0);
+            
     }
 
-    /// <summary>
     /// Specifies when the object needs to start or stop dashing
-    /// </summary>
-    IEnumerator CheckIfDashing()
+    IEnumerator performDash()
     {
         isDashing = true;
         canDash = false;
         
+        float gravityBefore = rb.gravityScale;
+
+        if (freezeVerticalSpeedWhileDashing)
+        {
+            rb.gravityScale = 0;
+            rb.velocity = new Vector2(rb.velocity.x, 0);
+        }
+
         yield return new WaitForSeconds(dashDuration);
         isDashing = false;
         rb.gravityScale = gravityBefore;
@@ -194,19 +174,4 @@ public class PlayerMovement : MonoBehaviour
         canDash = true;
     }
 
-    /// <summary>
-    /// Applies the forces of the Dash if you are dashing
-    /// </summary>
-    void PerformDash()
-    {
-        if (sr.flipX)
-            rb.velocity = new Vector2(-dashForce, rb.velocity.y);
-        else
-            rb.velocity = new Vector2(dashForce, rb.velocity.y);
-        if (resetSpeedY)
-        {
-            rb.gravityScale = 0;
-            rb.velocity = new Vector2(rb.velocity.x, 0);
-        }
-    }
 }
